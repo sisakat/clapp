@@ -1,5 +1,5 @@
 # Clapp - Command Line Arguments++
-A lightweight command line argument parsing library.
+A lightweight header only command line argument parsing library.
 
 ## Example
 ```cpp
