@@ -41,10 +41,11 @@ int main(int argc, char* argv[])
 ```
 
 ```
-> ./main -h
+> ./basic -h
 Sample Application 1.0.0
 Some really useful cli program.
 
+./basic [-h] -c <json config file> [-s] [-f] 
 -h  --help
     Print this help message.
 -c   --cfg <json config file>
@@ -56,7 +57,7 @@ Some really useful cli program.
 ```
 
 ```
-> ./main -c config.json -f
+> ./basic -c config.json -f
 Config file: config.json
 Silent mode set: 0
 Flag set: 1
