@@ -3,11 +3,12 @@ A lightweight header only command line argument parsing library. Just download [
 
 ## Example
 ```cpp
-#include <clapp.hpp>
+#include "include/clapp.hpp"
+#include <iostream>
 
 int main(int argc, char* argv[])
 {
-    clapp::ArgumentParser parser(arguments);
+    clapp::ArgumentParser parser(argc, argv);
     parser.name("Sample Application")
         .version("1.0.0")
         .description("Some really useful cli program.")
@@ -17,18 +18,46 @@ int main(int argc, char* argv[])
     parser.option<std::string>("-c", "--cfg")
         .required()
         .argument("json config file")
+        .description("Sets the config file.")
         .store(config);
 
-    bool silent;
+    bool silent = false;
     parser.option("-s")
         .description("Silent mode")
         .flag()
         .store(silent);
 
-    auto& flag = parser.option("-f").flag();
-    if (flag.value())
+    auto& flag = parser.option("-f")
+        .flag()
+        .description("Flag for something.");
+
+    if (parser.parse())
     {
-        ...
+        std::cout << "Config file: " << config << std::endl;
+        std::cout << "Silent mode set: " << silent << std::endl;
+        std::cout << "Flag set: " << flag.value() << std::endl;
     }
 }
+```
+
+```
+> ./main -h
+Sample Application 1.0.0
+Some really useful cli program.
+
+-h  --help
+    Print this help message.
+-c   --cfg <json config file>
+    Sets the config file.
+-s        
+    Silent mode
+-f        
+    Flag for something.
+```
+
+```
+> ./main -c config.json -f
+Config file: config.json
+Silent mode set: 0
+Flag set: 1
 ```
