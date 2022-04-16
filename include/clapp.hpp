@@ -38,10 +38,12 @@ SOFTWARE.
 #include <unordered_map>
 #include <vector>
 
+#define CLAPP_VERSION_MAJOR 1
+#define CLAPP_VERSION_MINOR 0
+#define CLAPP_VERSION_PATCH 0
+
 namespace clapp
 {
-
-
 
 /* Type conversions */
 
