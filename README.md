@@ -3,7 +3,7 @@ A lightweight header only command line argument parsing library. Just download [
 
 ## Example
 ```cpp
-#include "include/clapp.hpp"
+#include "../include/clapp.hpp"
 #include <iostream>
 
 int main(int argc, char* argv[])
@@ -13,6 +13,13 @@ int main(int argc, char* argv[])
         .version("1.0.0")
         .description("Some really useful cli program.")
         .addHelp();
+
+    parser.option("-v", "--version")
+        .flag()
+        .overruling()
+        .callback([](auto val) {
+            std::cout << "1.0" << std::endl;
+        });
 
     std::string config;
     parser.option<std::string>("-c", "--cfg")
@@ -45,9 +52,11 @@ int main(int argc, char* argv[])
 Sample Application 1.0.0
 Some really useful cli program.
 
-./basic [-h] -c <json config file> [-s] [-f] 
+./basic [-h] [-v] -c <json config file> [-s] 
+ [-f] 
 -h  --help
     Print this help message.
+-v --version
 -c   --cfg <json config file>
     Sets the config file.
 -s        
@@ -61,4 +70,9 @@ Some really useful cli program.
 Config file: config.json
 Silent mode set: 0
 Flag set: 1
+```
+
+```
+> ./basic -v
+1.0
 ```

@@ -9,6 +9,13 @@ int main(int argc, char* argv[])
         .description("Some really useful cli program.")
         .addHelp();
 
+    parser.option("-v", "--version")
+        .flag()
+        .overruling()
+        .callback([](auto val) {
+            std::cout << "1.0" << std::endl;
+        });
+
     std::string config;
     parser.option<std::string>("-c", "--cfg")
         .required()
