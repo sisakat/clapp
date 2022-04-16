@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -383,6 +384,44 @@ public:
             ss << std::endl;
         }
 
+        uint32_t size = ss.str().size();
+        uint32_t line_length = size;
+        ss << m_argv[0] << " ";
+        for (const auto& option : m_options)
+        {
+            if (line_length > size + 100)
+            {
+                ss << std::endl << " ";
+                line_length = size;
+            }
+            assert(!option->short_option.empty() ||
+                   !option->long_option.empty());
+            if (!option->required)
+            {
+                ss << "[";
+            }
+            if (!option->short_option.empty())
+            {
+                ss << option->short_option;
+            }
+            else if (!option->long_option.empty())
+            {
+                ss << option->long_option;
+            }
+            if (!option->argument_name.empty())
+            {
+                ss << " <" << option->argument_name << ">";
+            }
+            if (!option->required)
+            {
+                ss << "]";
+            }
+            ss << " ";
+            line_length += ss.str().size() - size;
+        }
+
+        ss << std::endl;
+
         for (const auto& option : m_options)
         {
             if (!option->short_option.empty())
@@ -514,7 +553,7 @@ private:
                     option->setValue({});
                 }
                 else
-                {   
+                {
                     // get the next argument and use it as value
                     std::string value = consume();
 
@@ -523,10 +562,11 @@ private:
                     if (m_options_map.find(value) != m_options_map.end())
                     {
                         std::stringstream ss;
-                        ss << "Expected argument after '" << option->name() << "', but none given.";
+                        ss << "Expected argument after '" << option->name()
+                           << "', but none given.";
                         throw ArgumentParserException(ss.str());
                     }
-                    
+
                     // pass the value to the option
                     option->setValue(value);
                 }
