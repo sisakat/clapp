@@ -1,4 +1,4 @@
-# Clapp - Command Line Arguments++
+# Clapp - Command Line Argument Parser++
 A lightweight header only command line argument parsing library. Just download [clapp.hpp](include/clapp.hpp) and get to work.
 
 ## Example
