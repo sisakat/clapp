@@ -24,5 +24,11 @@ int main(int argc, char* argv[])
         .description("Silent mode")
         .flag()
         .store(silent);
+
+    auto& flag = parser.option("-f").flag();
+    if (flag.value())
+    {
+        ...
+    }
 }
 ```
