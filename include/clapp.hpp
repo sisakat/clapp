@@ -1,0 +1,563 @@
+#include <algorithm>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace clapp
+{
+
+/* Type conversions */
+
+template <typename T> struct TypeParser
+{
+    static T Get(std::string value) { return T{value}; }
+};
+
+template <> struct TypeParser<int>
+{
+    static int Get(std::string value) { return std::stoi(value); }
+};
+
+template <> struct TypeParser<double>
+{
+    static double Get(std::string value) { return std::stod(value); }
+};
+
+template <> struct TypeParser<float>
+{
+    static float Get(std::string value) { return std::stof(value); }
+};
+
+template <> struct TypeParser<bool>
+{
+    static bool Get(std::string value)
+    {
+        return value.empty() || value == "1" || value == "true";
+    }
+};
+
+/* Argument parser */
+
+class ArgumentParser
+{
+public:
+    /**
+     * @brief Exception used for errors during the command line parsing. For
+     * example if an option is missing but required.
+     *
+     */
+    class ArgumentParserException : public std::runtime_error
+    {
+    public:
+        ArgumentParserException(const std::string& what)
+            : std::runtime_error(what)
+        {
+        }
+    };
+
+    /**
+     * @brief Option class representing a command line option the user can
+     * specify. Use for internal purspose only.
+     *
+     */
+    struct Option
+    {
+        virtual ~Option() = default;
+        friend class ArgumentParser;
+
+    protected:
+        Option(const std::string& _short_option,
+               const std::string& _long_option)
+            : short_option{_short_option}, long_option{_long_option}
+        {
+        }
+        Option(const std::string& long_option) : Option("", long_option) {}
+        virtual void setValue(const std::string& value) = 0;
+        virtual void invokeCallback() = 0;
+
+        bool operator<(const Option& other) { return name() < other.name(); }
+
+        std::string name() const
+        {
+            std::stringstream ss;
+            ss << short_option;
+            if (!long_option.empty())
+            {
+                ss << " (" << long_option << ")";
+            }
+            return ss.str();
+        }
+
+        std::string argument_name;
+        std::string short_option;
+        std::string long_option;
+        std::string description;
+
+        bool required = false;
+        bool set = false;
+        bool flag = false;
+        bool overruling = false;
+        bool has_default_value = false;
+    };
+
+    /**
+     * @brief Wrapper of an user specified option that can be interacted with.
+     * To configure the option use the public member functions of this class.
+     *
+     * @tparam T
+     */
+    template <typename T> class OptionWrapper : public Option
+    {
+    public:
+        OptionWrapper(const std::string& short_option,
+                      const std::string& long_option)
+            : Option(short_option, long_option)
+        {
+        }
+
+        OptionWrapper(const std::string& long_option) : Option(long_option) {}
+
+        OptionWrapper(const OptionWrapper&) = delete;
+        virtual ~OptionWrapper() = default;
+
+        /**
+         * @brief Argument name.
+         *
+         * @param name Argument name displayed in the help message.
+         * @return OptionWrapper<T>&
+         */
+        OptionWrapper<T>& argument(const std::string& name)
+        {
+            Option::argument_name = name;
+            return *this;
+        }
+
+        /**
+         * @brief Describes what the option does. Displayed in the help message.
+         *
+         * @param description Description of the option.
+         */
+        OptionWrapper<T>& description(const std::string& description)
+        {
+            Option::description = description;
+            return *this;
+        }
+
+        /**
+         * @brief Option must not be specified.
+         *
+         */
+        OptionWrapper<T>& optional()
+        {
+            Option::required = false;
+            return *this;
+        }
+
+        /**
+         * @brief Option must be specified.
+         *
+         */
+        OptionWrapper<T>& required()
+        {
+            Option::required = true;
+            return *this;
+        }
+
+        /**
+         * @brief Where the value is stored if it is provided.
+         *
+         * @param store Storage
+         */
+        OptionWrapper<T>& store(T& store)
+        {
+            m_ref = &store;
+            return *this;
+        }
+
+        /**
+         * @brief Function to be called if a value has been stored.
+         *
+         * @param callback Callback function
+         */
+        OptionWrapper<T>& callback(std::function<void(T)> callback)
+        {
+            m_callback = callback;
+            return *this;
+        }
+
+        /**
+         * @brief Option has no arguments and is treated as a flag.
+         *
+         */
+        OptionWrapper<T>& flag()
+        {
+            Option::flag = true;
+            return *this;
+        }
+
+        /**
+         * @brief Default value if the option is not specified.
+         *
+         * @param value Some default value.
+         * @return OptionWrapper<T>&
+         */
+        OptionWrapper<T>& defaultValue(T value)
+        {
+            Option::set = true;
+            Option::has_default_value = true;
+            m_value = value;
+            return *this;
+        }
+
+        OptionWrapper<T>& overruling()
+        {
+            Option::overruling = true;
+            return *this;
+        }
+
+        /**
+         * @brief Current value stored in the option.
+         *
+         * @return T&
+         */
+        T& value() { return m_value; }
+
+    private:
+        friend class ArgumentParser;
+        std::function<void(T)> m_callback = [](T val) {};
+        T m_value;
+        T* m_ref{nullptr};
+
+        void setValue(const std::string& value) override
+        {
+            Option::set = true;
+            m_value = TypeParser<T>::Get(value);
+            if (m_ref)
+                *m_ref = m_value;
+        }
+
+        void invokeCallback() override { m_callback(m_value); }
+    };
+
+    ArgumentParser(int argc, char* argv[]) : m_argv{argv, argv + argc} {}
+    ArgumentParser(const std::vector<std::string>& arguments)
+        : m_argv{arguments}
+    {
+    }
+
+    /**
+     * @brief Parses the arguments, stores the values and invokes callbacks.
+     *
+     */
+    void parse()
+    {
+        if (m_argv.size() < 2)
+        {
+            printHelp();
+            return;
+        }
+
+        parseArguments();
+
+        if (checkOverrulingOptions())
+        {
+            return;
+        }
+
+        checkRequiredOptions();
+        invokeCallbacks();
+    }
+
+    /**
+     * @brief Option that stores a T value.
+     *
+     * @tparam T Some type that can be constructed by a string or has a defined
+     * TypeParser.
+     * @param short_option Short name of the option.
+     * @param long_option Long name of the option.
+     * @return OptionWrapper<T>&
+     */
+    template <typename T>
+    OptionWrapper<T>& option(const std::string& short_option,
+                             const std::string& long_option)
+    {
+        m_options.emplace_back(
+            std::make_unique<OptionWrapper<T>>(short_option, long_option));
+        auto& option_ptr = m_options.back();
+
+        if (short_option.empty() && long_option.empty())
+        {
+            throw ArgumentParserException(
+                "Short option and long option name cannot both be empty.");
+        }
+
+        if (!short_option.empty())
+        {
+
+            m_options_map[short_option] = m_options.size() - 1;
+        }
+
+        if (!long_option.empty())
+        {
+            m_options_map[long_option] = m_options.size() - 1;
+        }
+
+        return *(reinterpret_cast<OptionWrapper<T>*>(option_ptr.get()));
+    }
+
+    /**
+     * @brief Option that stores a T value.
+     *
+     * @tparam T Some type that can be constructed by a string or has a defined
+     * TypeParser.
+     * @param long_option Long name of the option.
+     * @return OptionWrapper<T>&
+     */
+    template <typename T>
+    OptionWrapper<T>& option(const std::string& long_option)
+    {
+        return option<T>({}, long_option);
+    }
+
+    /**
+     * @brief Option that acts like a flag and stores a boolean.
+     *
+     * @param short_option Short name of the option.
+     * @param long_option Long name of the option.
+     * @return OptionWrapper<bool>&
+     */
+    OptionWrapper<bool>& option(const std::string& short_option,
+                                const std::string& long_option)
+    {
+        return option<bool>(short_option, long_option);
+    }
+
+    /**
+     * @brief Option that acts like a flag and stores a boolean.
+     *
+     * @param long_option Long name of the option.
+     * @return OptionWrapper<bool>&
+     */
+    OptionWrapper<bool>& option(const std::string& long_option)
+    {
+        return option<bool>({}, long_option);
+    }
+
+    /**
+     * @brief Returns the help message containing the name and description of
+     * each option.
+     *
+     * @return std::string
+     */
+    std::string help() const
+    {
+        std::stringstream ss;
+        if (!m_name.empty())
+        {
+            ss << m_name;
+            if (m_version.empty())
+            {
+                ss << std::endl;
+            }
+        }
+
+        if (!m_version.empty())
+        {
+            ss << " " << m_version;
+            ss << std::endl;
+        }
+
+        if (!m_description.empty())
+        {
+            ss << m_description << std::endl;
+        }
+
+        if (!m_name.empty() || !m_version.empty() || !m_description.empty())
+        {
+            ss << std::endl;
+        }
+
+        for (const auto& option : m_options)
+        {
+            if (!option->short_option.empty())
+            {
+                ss << std::setw(2) << std::left << option->short_option;
+            }
+
+            if (!option->long_option.empty())
+            {
+                if (option->short_option.empty())
+                {
+                    ss << std::setw(10) << std::left << option->long_option;
+                }
+                else
+                {
+                    ss << " " << std::right << std::setw(7)
+                       << option->long_option;
+                }
+            }
+
+            if (!option->argument_name.empty())
+            {
+                ss << " " << option->argument_name;
+            }
+
+            ss << std::right;
+            if (!option->description.empty())
+            {
+                ss << std::endl;
+                ss << "    " << option->description;
+            }
+            ss << std::endl;
+        }
+        return ss.str();
+    }
+
+    /**
+     * @brief Prints the help message containing the name and description of
+     * each option.
+     *
+     */
+    void printHelp() const { std::cout << help(); }
+
+    /**
+     * @brief Adds a default option -h (--help).
+     *
+     * @return OptionWrapper<bool>&
+     */
+    auto& addHelp()
+    {
+        return this->option("-h", "--help")
+            .flag()
+            .overruling()
+            .description("Print this help message.")
+            .callback([this](auto) { this->printHelp(); });
+    }
+
+    /**
+     * @brief Sets the name of the executing program. Displayed in the help
+     * message.
+     *
+     * @param name Name string of the program.
+     * @return ArgumentParser&
+     */
+    ArgumentParser& name(const std::string& name)
+    {
+        m_name = name;
+        return *this;
+    }
+
+    /**
+     * @brief Sets the description of the executing program. Displayed in the
+     * help message.
+     *
+     * @param description Description string of the program.
+     * @return ArgumentParser&
+     */
+    ArgumentParser& description(const std::string& description)
+    {
+        m_description = description;
+        return *this;
+    }
+
+    /**
+     * @brief Sets the version of the executing program. Displayed in the help
+     * message.
+     *
+     * @param version Version string of the program.
+     * @return ArgumentParser&
+     */
+    ArgumentParser& version(const std::string& version)
+    {
+        m_version = version;
+        return *this;
+    }
+
+private:
+    std::string m_name;
+    std::string m_description;
+    std::string m_version;
+
+    uint32_t m_curr_arg = 1;
+    std::vector<std::string> m_argv;
+
+    std::unordered_map<std::string, size_t> m_options_map;
+    std::vector<std::unique_ptr<Option>> m_options;
+    std::vector<size_t> m_option_order;
+
+    std::string consume()
+    {
+        ++m_curr_arg;
+        if (m_curr_arg >= m_argv.size())
+            throw std::runtime_error("No more arguments.");
+        return m_argv[m_curr_arg];
+    }
+
+    void parseArguments()
+    {
+        while (m_curr_arg < m_argv.size())
+        {
+            const auto& arg = m_argv[m_curr_arg];
+            if (m_options_map.find(arg) != m_options_map.end())
+            {
+                auto idx = m_options_map.at(arg);
+                auto& option = m_options.at(idx);
+
+                if (option->flag)
+                {
+                    option->setValue({});
+                }
+                else
+                {
+                    option->setValue(consume());
+                }
+
+                m_option_order.push_back(idx);
+            }
+
+            ++m_curr_arg;
+        }
+    }
+
+    void checkRequiredOptions()
+    {
+        for (const auto& option : m_options)
+        {
+            if (option->required && !option->set)
+            {
+                std::stringstream ss;
+                ss << "Option '" << option->name() << "' is required.";
+                throw ArgumentParserException(ss.str());
+            }
+        }
+    }
+
+    void invokeCallbacks()
+    {
+        for (const auto& option_idx : m_option_order)
+        {
+            auto& option = m_options[option_idx];
+            option->invokeCallback();
+        }
+    }
+
+    bool checkOverrulingOptions()
+    {
+        for (const auto& option : m_options)
+        {
+            if (option->set && option->overruling)
+            {
+                option->invokeCallback();
+                return true;
+            }
+        }
+
+        return false;
+    }
+};
+} // namespace clapp
