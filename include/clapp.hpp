@@ -254,23 +254,24 @@ public:
      * @brief Parses the arguments, stores the values and invokes callbacks.
      *
      */
-    void parse()
+    bool parse()
     {
         if (m_argv.size() < 2)
         {
             printHelp();
-            return;
+            return false;
         }
 
         parseArguments();
 
         if (checkOverrulingOptions())
         {
-            return;
+            return false;
         }
 
         checkRequiredOptions();
         invokeCallbacks();
+        return true;
     }
 
     /**
@@ -404,7 +405,7 @@ public:
 
             if (!option->argument_name.empty())
             {
-                ss << " " << option->argument_name;
+                ss << " <" << option->argument_name << ">";
             }
 
             ss << std::right;
@@ -513,8 +514,21 @@ private:
                     option->setValue({});
                 }
                 else
-                {
-                    option->setValue(consume());
+                {   
+                    // get the next argument and use it as value
+                    std::string value = consume();
+
+                    // check if the value is a option, thus the previous
+                    // option with arguments was not satisified.
+                    if (m_options_map.find(value) != m_options_map.end())
+                    {
+                        std::stringstream ss;
+                        ss << "Expected argument after '" << option->name() << "', but none given.";
+                        throw ArgumentParserException(ss.str());
+                    }
+                    
+                    // pass the value to the option
+                    option->setValue(value);
                 }
 
                 m_option_order.push_back(idx);

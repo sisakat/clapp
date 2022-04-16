@@ -84,3 +84,16 @@ TEST_CASE("test_multiple")
     REQUIRE(d.value());
     REQUIRE(cfg == "config.json");
 }
+
+TEST_CASE("test_no_argument_data")
+{
+    std::vector<std::string> arguments{"", "-a", "-cfg", "-d", "-d"};
+    clapp::ArgumentParser parser(arguments);
+
+    std::string cfg;
+    parser.option("-a").required().flag();
+    parser.option<std::string>("-cfg").required().store(cfg);
+    parser.option("-d").flag();
+
+    REQUIRE_THROWS(parser.parse());
+}
