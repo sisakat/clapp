@@ -3,6 +3,8 @@ A lightweight command line argument parsing library.
 
 ## Example
 ```cpp
+#include <clapp.hpp>
+
 int main(int argc, char* argv[])
 {
     clapp::ArgumentParser parser(arguments);
