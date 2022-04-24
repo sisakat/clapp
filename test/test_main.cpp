@@ -97,3 +97,16 @@ TEST_CASE("test_no_argument_data")
 
     REQUIRE_THROWS(parser.parse());
 }
+
+TEST_CASE("test_option_with_equal_sign")
+{
+    std::vector<std::string> arguments{"", "--option=value", "-a"};
+    clapp::ArgumentParser parser(arguments);
+
+    std::string cfg;
+    parser.option("-a").required().flag();
+    parser.option<std::string>("--option").store(cfg);
+    parser.parse();
+
+    REQUIRE(cfg == "value");
+}

@@ -1,9 +1,9 @@
 /*
-   ___ _      _   ___ ___ 
+   ___ _      _   ___ ___
   / __| |    /_\ | _ \ _ \  Command Line Argument Parser++
- | (__| |__ / _ \|  _/  _/  Version 1.0.0
+ | (__| |__ / _ \|  _/  _/  Version 1.1.0
   \___|____/_/ \_\_| |_|    https://github.com/sisakat/clapp
-                            
+
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
 SPDX-License-Identifier: MIT
 Copyright (c) 2022 Stefan Isak <http://sisak.at>.
@@ -32,13 +32,15 @@ SOFTWARE.
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
 #define CLAPP_VERSION_MAJOR 1
-#define CLAPP_VERSION_MINOR 0
+#define CLAPP_VERSION_MINOR 1
 #define CLAPP_VERSION_PATCH 0
 
 namespace clapp
@@ -562,6 +564,12 @@ private:
     std::vector<std::unique_ptr<Option>> m_options;
     std::vector<size_t> m_option_order;
 
+    /**
+     * @brief Consumes the next argument of the argument list and returns it.
+     * Increments the internal argument pointer.
+     *
+     * @return std::string
+     */
     std::string consume()
     {
         ++m_curr_arg;
@@ -570,14 +578,41 @@ private:
         return m_argv[m_curr_arg];
     }
 
+    /**
+     * @brief Parses options of type <option>=<value>.
+     * Returns the option and a value, if present.
+     *
+     */
+    std::tuple<std::string, std::optional<std::string>>
+    parseOptionWithEqualSign(const std::string& arg)
+    {
+        auto equal_sign_pos = arg.find('=');
+        if (equal_sign_pos != std::string::npos)
+        {
+            auto option = arg.substr(0, equal_sign_pos);
+            auto value = arg.substr(equal_sign_pos + 1);
+            return {option, {value}};
+        }
+
+        return {arg, {}};
+    }
+
     void parseArguments()
     {
         while (m_curr_arg < m_argv.size())
         {
-            const auto& arg = m_argv[m_curr_arg];
-            if (m_options_map.find(arg) != m_options_map.end())
+            auto arg = m_argv[m_curr_arg];
+            auto [option, value] = parseOptionWithEqualSign(arg);
+            if (value)
             {
-                auto idx = m_options_map.at(arg);
+                // if we have a option of type <option>=<value> with a value
+                // store the value as if the arguments were <option> <value>
+                m_argv.insert(m_argv.begin() + m_curr_arg + 1, value.value());
+            }
+
+            if (m_options_map.find(option) != m_options_map.end())
+            {
+                auto idx = m_options_map.at(option);
                 auto& option = m_options.at(idx);
 
                 if (option->flag)
