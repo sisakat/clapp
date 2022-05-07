@@ -1,7 +1,7 @@
 /*
    ___ _      _   ___ ___
   / __| |    /_\ | _ \ _ \  Command Line Argument Parser++
- | (__| |__ / _ \|  _/  _/  Version 1.1.0
+ | (__| |__ / _ \|  _/  _/  Version 1.2.0
   \___|____/_/ \_\_| |_|    https://github.com/sisakat/clapp
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -33,6 +33,7 @@ SOFTWARE.
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -40,7 +41,7 @@ SOFTWARE.
 #include <vector>
 
 #define CLAPP_VERSION_MAJOR 1
-#define CLAPP_VERSION_MINOR 1
+#define CLAPP_VERSION_MINOR 2
 #define CLAPP_VERSION_PATCH 0
 
 namespace clapp
@@ -113,6 +114,8 @@ public:
         }
         Option(const std::string& long_option) : Option("", long_option) {}
         virtual void setValue(const std::string& value) = 0;
+        virtual bool isAllowedValue(const std::string& value) = 0;
+        virtual std::set<std::string> choices() = 0;
         virtual void invokeCallback() = 0;
 
         bool operator<(const Option& other) { return name() < other.name(); }
@@ -249,9 +252,39 @@ public:
             return *this;
         }
 
+        /**
+         * @brief This arguments stops the parsing and executes a specified
+         * callback.
+         *
+         * @return OptionWrapper<T>&
+         */
         OptionWrapper<T>& overruling()
         {
             Option::overruling = true;
+            return *this;
+        }
+
+        /**
+         * @brief Provide values that are allowed to be specified.
+         *
+         * @param values
+         * @return OptionWrapper<T>&
+         */
+        OptionWrapper<T>& choices(std::initializer_list<T> values)
+        {
+            m_choices = values;
+            return *this;
+        }
+
+        /**
+         * @brief Provide values that are allowed to be specified.
+         *
+         * @param values
+         * @return OptionWrapper<T>&
+         */
+        OptionWrapper<T>& choices(const std::set<T>& values)
+        {
+            m_choices = values;
             return *this;
         }
 
@@ -264,16 +297,54 @@ public:
 
     private:
         friend class ArgumentParser;
+        std::set<T> m_choices;
         std::function<void(T)> m_callback = [](T val) {};
         T m_value;
         T* m_ref{nullptr};
 
         void setValue(const std::string& value) override
         {
-            Option::set = true;
-            m_value = TypeParser<T>::Get(value);
-            if (m_ref)
-                *m_ref = m_value;
+            if (isAllowedValue(value))
+            {
+                Option::set = true;
+                m_value = TypeParser<T>::Get(value);
+                if (m_ref)
+                    *m_ref = m_value;
+            }
+            else
+            {
+                throw ArgumentParserException("Value '" + value +
+                                              "' not allowed.");
+            }
+        }
+
+        bool isAllowedValue(const std::string& value) override
+        {
+            if (m_choices.size() == 0)
+            {
+                return true;
+            }
+
+            auto parsed_value = TypeParser<T>::Get(value);
+            if (m_choices.find(parsed_value) != m_choices.end())
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        std::set<std::string> choices() override
+        {
+            std::ostringstream oss;
+            std::set<std::string> result;
+            for (const auto& allowed_value : m_choices)
+            {
+                oss << allowed_value;
+                result.insert(oss.str());
+                oss.str("");
+            }
+            return result;
         }
 
         void invokeCallback() override { m_callback(m_value); }
@@ -446,6 +517,19 @@ public:
             {
                 ss << " <" << option->argument_name << ">";
             }
+            auto choices = option->choices();
+            if (choices.size() > 0)
+            {
+                ss << " ";
+                for (const auto& choice : choices)
+                {
+                    ss << choice;
+                    if (choice != *(--choices.end()))
+                    {
+                        ss << "|";
+                    }
+                }
+            }
             if (!option->required)
             {
                 ss << "]";
@@ -479,6 +563,20 @@ public:
             if (!option->argument_name.empty())
             {
                 ss << " <" << option->argument_name << ">";
+            }
+
+            auto choices = option->choices();
+            if (choices.size() > 0)
+            {
+                ss << " ";
+                for (const auto& choice : choices)
+                {
+                    ss << choice;
+                    if (choice != *(--choices.end()))
+                    {
+                        ss << "|";
+                    }
+                }
             }
 
             ss << std::right;

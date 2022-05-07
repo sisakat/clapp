@@ -110,3 +110,30 @@ TEST_CASE("test_option_with_equal_sign")
 
     REQUIRE(cfg == "value");
 }
+
+TEST_CASE("test_option_with_choices")
+{
+    std::vector<std::string> arguments{"", "--option=value", "-a"};
+    clapp::ArgumentParser parser(arguments);
+
+    std::string cfg;
+    parser.option<std::string>("--option")
+        .choices({"value", "value1"})
+        .store(cfg);
+    parser.parse();
+
+    REQUIRE(cfg == "value");
+}
+
+TEST_CASE("test_option_with_choices_fail")
+{
+    std::vector<std::string> arguments{"", "--option=value2", "-a"};
+    clapp::ArgumentParser parser(arguments);
+
+    std::string cfg;
+    parser.option<std::string>("--option")
+        .choices({"value", "value1"})
+        .store(cfg);
+    
+    REQUIRE_THROWS(parser.parse());
+}
