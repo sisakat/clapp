@@ -33,6 +33,12 @@ int main(int argc, char* argv[])
         .flag()
         .description("Flag for something.");
 
+    std::string loglevel;
+    parser.option<std::string>("--loglevel")
+        .choices({"trace", "debug", "info"})
+        .description("Set the log level")
+        .store(loglevel);
+
     if (parser.parse())
     {
         std::cout << "Config file: " << config << std::endl;
