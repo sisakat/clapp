@@ -41,7 +41,7 @@ SOFTWARE.
 #include <vector>
 
 #define CLAPP_VERSION_MAJOR 1
-#define CLAPP_VERSION_MINOR 2
+#define CLAPP_VERSION_MINOR 3
 #define CLAPP_VERSION_PATCH 0
 
 namespace clapp
@@ -214,6 +214,7 @@ public:
         OptionWrapper<T>& store(T& store)
         {
             m_ref = &store;
+            *m_ref = m_value;
             return *this;
         }
 
@@ -249,6 +250,10 @@ public:
             Option::set = true;
             Option::has_default_value = true;
             m_value = value;
+            if (m_ref != nullptr)
+            {
+                *m_ref = m_value;
+            }
             return *this;
         }
 
