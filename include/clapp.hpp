@@ -1,7 +1,7 @@
 /*
    ___ _      _   ___ ___
   / __| |    /_\ | _ \ _ \  Command Line Argument Parser++
- | (__| |__ / _ \|  _/  _/  Version 1.3.0
+ | (__| |__ / _ \|  _/  _/  Version 1.3.1
   \___|____/_/ \_\_| |_|    https://github.com/sisakat/clapp
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -42,7 +42,7 @@ SOFTWARE.
 
 #define CLAPP_VERSION_MAJOR 1
 #define CLAPP_VERSION_MINOR 3
-#define CLAPP_VERSION_PATCH 0
+#define CLAPP_VERSION_PATCH 1
 
 namespace clapp
 {
