@@ -38,6 +38,7 @@ SOFTWARE.
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #define CLAPP_VERSION_MAJOR 1
@@ -56,22 +57,22 @@ template <typename T> struct TypeParser
 
 template <> struct TypeParser<int>
 {
-    static int Get(std::string value) { return std::stoi(value); }
+    static int Get(const std::string& value) { return std::stoi(value); }
 };
 
 template <> struct TypeParser<double>
 {
-    static double Get(std::string value) { return std::stod(value); }
+    static double Get(const std::string& value) { return std::stod(value); }
 };
 
 template <> struct TypeParser<float>
 {
-    static float Get(std::string value) { return std::stof(value); }
+    static float Get(const std::string& value) { return std::stof(value); }
 };
 
 template <> struct TypeParser<bool>
 {
-    static bool Get(std::string value)
+    static bool Get(const std::string& value)
     {
         return value.empty() || value == "1" || value == "true";
     }
@@ -90,7 +91,7 @@ public:
     class ArgumentParserException : public std::runtime_error
     {
     public:
-        ArgumentParserException(const std::string& what)
+        explicit ArgumentParserException(const std::string& what)
             : std::runtime_error(what)
         {
         }
@@ -107,12 +108,15 @@ public:
         friend class ArgumentParser;
 
     protected:
-        Option(const std::string& _short_option,
-               const std::string& _long_option)
-            : short_option{_short_option}, long_option{_long_option}
+        Option(std::string _short_option, std::string _long_option)
+            : short_option{std::move(_short_option)},
+              long_option{std::move(_long_option)}
         {
         }
-        Option(const std::string& long_option) : Option("", long_option) {}
+        explicit Option(const std::string& long_option)
+            : Option("", long_option)
+        {
+        }
         virtual void setValue(const std::string& value) = 0;
         virtual bool isAllowedValue(const std::string& value) = 0;
         virtual std::set<std::string> choices() = 0;
@@ -120,7 +124,7 @@ public:
 
         bool operator<(const Option& other) { return name() < other.name(); }
 
-        std::string name() const
+        [[nodiscard]] std::string name() const
         {
             std::stringstream ss;
             ss << short_option;
@@ -158,10 +162,13 @@ public:
         {
         }
 
-        OptionWrapper(const std::string& long_option) : Option(long_option) {}
+        explicit OptionWrapper(const std::string& long_option)
+            : Option(long_option)
+        {
+        }
 
         OptionWrapper(const OptionWrapper&) = delete;
-        virtual ~OptionWrapper() = default;
+        ~OptionWrapper() override = default;
 
         /**
          * @brief Argument name.
@@ -356,7 +363,7 @@ public:
     };
 
     ArgumentParser(int argc, char* argv[]) : m_argv{argv, argv + argc} {}
-    ArgumentParser(const std::vector<std::string>& arguments)
+    explicit ArgumentParser(const std::vector<std::string>& arguments)
         : m_argv{arguments}
     {
     }
@@ -523,7 +530,7 @@ public:
                 ss << " <" << option->argument_name << ">";
             }
             auto choices = option->choices();
-            if (choices.size() > 0)
+            if (!choices.empty())
             {
                 ss << " ";
                 for (const auto& choice : choices)
@@ -571,7 +578,7 @@ public:
             }
 
             auto choices = option->choices();
-            if (choices.size() > 0)
+            if (!choices.empty())
             {
                 ss << " ";
                 for (const auto& choice : choices)
@@ -686,7 +693,7 @@ private:
      * Returns the option and a value, if present.
      *
      */
-    std::tuple<std::string, std::optional<std::string>>
+    static std::tuple<std::string, std::optional<std::string>>
     parseOptionWithEqualSign(const std::string& arg)
     {
         auto equal_sign_pos = arg.find('=');
@@ -705,17 +712,18 @@ private:
         while (m_curr_arg < m_argv.size())
         {
             auto arg = m_argv[m_curr_arg];
-            auto [option, value] = parseOptionWithEqualSign(arg);
-            if (value)
+            auto [optionStr, possibleValue] = parseOptionWithEqualSign(arg);
+            if (possibleValue)
             {
                 // if we have an option of type <option>=<value> with a value
                 // store the value as if the arguments were <option> <value>
-                m_argv.insert(m_argv.begin() + m_curr_arg + 1, value.value());
+                m_argv.insert(m_argv.begin() + m_curr_arg + 1,
+                              possibleValue.value());
             }
 
-            if (m_options_map.find(option) != m_options_map.end())
+            if (m_options_map.find(optionStr) != m_options_map.end())
             {
-                auto idx = m_options_map.at(option);
+                auto idx = m_options_map.at(optionStr);
                 auto& option = m_options.at(idx);
 
                 if (option->flag)
