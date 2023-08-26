@@ -708,7 +708,7 @@ private:
             auto [option, value] = parseOptionWithEqualSign(arg);
             if (value)
             {
-                // if we have a option of type <option>=<value> with a value
+                // if we have an option of type <option>=<value> with a value
                 // store the value as if the arguments were <option> <value>
                 m_argv.insert(m_argv.begin() + m_curr_arg + 1, value.value());
             }
@@ -728,7 +728,7 @@ private:
                     std::string value = consume();
 
                     // check if the value is a option, thus the previous
-                    // option with arguments was not satisified.
+                    // option with arguments was not satisfied.
                     if (m_options_map.find(value) != m_options_map.end())
                     {
                         std::stringstream ss;
