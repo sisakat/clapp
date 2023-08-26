@@ -1,7 +1,7 @@
 /*
    ___ _      _   ___ ___
   / __| |    /_\ | _ \ _ \  Command Line Argument Parser++
- | (__| |__ / _ \|  _/  _/  Version 1.3.1
+ | (__| |__ / _ \|  _/  _/  Version 1.4.0
   \___|____/_/ \_\_| |_|    https://github.com/sisakat/clapp
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -42,8 +42,8 @@ SOFTWARE.
 #include <vector>
 
 #define CLAPP_VERSION_MAJOR 1
-#define CLAPP_VERSION_MINOR 3
-#define CLAPP_VERSION_PATCH 1
+#define CLAPP_VERSION_MINOR 4
+#define CLAPP_VERSION_PATCH 0
 
 namespace clapp
 {
@@ -113,12 +113,15 @@ public:
               long_option{std::move(_long_option)}
         {
         }
+
         explicit Option(const std::string& long_option)
             : Option("", long_option)
         {
         }
+
         virtual void setValue(const std::string& value) = 0;
-        virtual bool isAllowedValue(const std::string& value) = 0;
+        [[nodiscard]] virtual bool isAllowedValue(const std::string& value) = 0;
+        [[nodiscard]] virtual bool isPositionalOption() const = 0;
         virtual std::set<std::string> choices() = 0;
         virtual void invokeCallback() = 0;
 
@@ -346,6 +349,12 @@ public:
             return false;
         }
 
+        [[nodiscard]] bool isPositionalOption() const override
+        {
+            return !long_option.empty() && short_option.empty() &&
+                   long_option.at(0) != '-';
+        }
+
         std::set<std::string> choices() override
         {
             std::ostringstream oss;
@@ -517,17 +526,31 @@ public:
             {
                 ss << "[";
             }
-            if (!option->short_option.empty())
+            if (option->isPositionalOption())
             {
-                ss << option->short_option;
+                if (!option->argument_name.empty())
+                {
+                    ss << "<" << option->argument_name << ">";
+                }
+                else
+                {
+                    ss << option->long_option;
+                }
             }
-            else if (!option->long_option.empty())
+            else
             {
-                ss << option->long_option;
-            }
-            if (!option->argument_name.empty())
-            {
-                ss << " <" << option->argument_name << ">";
+                if (!option->short_option.empty())
+                {
+                    ss << option->short_option;
+                }
+                else if (!option->long_option.empty())
+                {
+                    ss << option->long_option;
+                }
+                if (!option->argument_name.empty())
+                {
+                    ss << " <" << option->argument_name << ">";
+                }
             }
             auto choices = option->choices();
             if (!choices.empty())
@@ -554,6 +577,11 @@ public:
 
         for (const auto& option : m_options)
         {
+            if (option->isPositionalOption() && option->description.empty())
+            {
+                continue;
+            }
+
             if (!option->short_option.empty())
             {
                 ss << std::setw(2) << std::left << option->short_option;
@@ -723,6 +751,7 @@ private:
 
             if (m_options_map.find(optionStr) != m_options_map.end())
             {
+                // we have a proper option
                 auto idx = m_options_map.at(optionStr);
                 auto& option = m_options.at(idx);
 
@@ -750,6 +779,26 @@ private:
                 }
 
                 m_option_order.push_back(idx);
+            }
+            else if (!optionStr.empty() && optionStr.at(0) == '-')
+            {
+                std::ostringstream oss;
+                oss << "Unknown option '" << optionStr << "'.";
+                throw ArgumentParserException(oss.str());
+            }
+            else
+            {
+                // we have no proper option - possibly a positional option
+                for (auto& option : m_options)
+                {
+                    if (option->isPositionalOption() && !option->set)
+                    {
+                        option->setValue(optionStr);
+                        m_option_order.push_back(
+                            m_options_map.at(option->long_option));
+                        break;
+                    }
+                }
             }
 
             ++m_curr_arg;

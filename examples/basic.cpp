@@ -9,6 +9,12 @@ int main(int argc, char* argv[])
         .description("Some really useful cli program.")
         .addHelp();
 
+    std::string inputFilename;
+    parser.option<std::string>("INPUT_FILENAME")
+        .required()
+        .description("Input filename.")
+        .store(inputFilename);
+
     parser.option("-v", "--version")
         .flag()
         .overruling()
@@ -41,6 +47,7 @@ int main(int argc, char* argv[])
 
     if (parser.parse())
     {
+        std::cout << "Input filename: " << inputFilename << std::endl;
         std::cout << "Config file: " << config << std::endl;
         std::cout << "Silent mode set: " << silent << std::endl;
         std::cout << "Flag set: " << flag.value() << std::endl;

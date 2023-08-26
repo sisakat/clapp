@@ -14,6 +14,12 @@ int main(int argc, char* argv[])
         .description("Some really useful cli program.")
         .addHelp();
 
+    std::string inputFilename;
+    parser.option<std::string>("INPUT_FILENAME")
+        .required()
+        .description("Input filename.")
+        .store(inputFilename);
+
     parser.option("-v", "--version")
         .flag()
         .overruling()
@@ -46,6 +52,7 @@ int main(int argc, char* argv[])
 
     if (parser.parse())
     {
+        std::cout << "Input filename: " << inputFilename << std::endl;
         std::cout << "Config file: " << config << std::endl;
         std::cout << "Silent mode set: " << silent << std::endl;
         std::cout << "Flag set: " << flag.value() << std::endl;
@@ -58,10 +65,12 @@ int main(int argc, char* argv[])
 Sample Application 1.0.0
 Some really useful cli program.
 
-./a.out [-h] [-v] -c <json config file> [-s] 
+./a.out [-h] INPUT_FILENAME [-v] -c <json config file> [-s] 
  [-f] [--loglevel debug|info|trace] 
 -h  --help
     Print this help message.
+INPUT_FILENAME
+    Input filename.
 -v --version
 -c   --cfg <json config file>
     Sets the config file.
@@ -74,7 +83,8 @@ Some really useful cli program.
 ```
 
 ```
-> ./basic -c config.json -f
+> ./basic test.txt -c config.json -f
+Input filename: test.txt
 Config file: config.json
 Silent mode set: 0
 Flag set: 1
