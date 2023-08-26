@@ -99,7 +99,7 @@ public:
 
     /**
      * @brief Option class representing a command line option the user can
-     * specify. Use for internal purspose only.
+     * specify. Use for internal purposes only.
      *
      */
     struct Option
