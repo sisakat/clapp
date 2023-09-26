@@ -1,7 +1,7 @@
 /*
    ___ _      _   ___ ___
   / __| |    /_\ | _ \ _ \  Command Line Argument Parser++
- | (__| |__ / _ \|  _/  _/  Version 1.4.0
+ | (__| |__ / _ \|  _/  _/  Version 1.4.1
   \___|____/_/ \_\_| |_|    https://github.com/sisakat/clapp
 
 Licensed under the MIT License <http://opensource.org/licenses/MIT>.
@@ -43,7 +43,7 @@ SOFTWARE.
 
 #define CLAPP_VERSION_MAJOR 1
 #define CLAPP_VERSION_MINOR 4
-#define CLAPP_VERSION_PATCH 0
+#define CLAPP_VERSION_PATCH 1
 
 namespace clapp
 {
@@ -257,7 +257,6 @@ public:
          */
         OptionWrapper<T>& defaultValue(T value)
         {
-            Option::set = true;
             Option::has_default_value = true;
             m_value = value;
             if (m_ref != nullptr)
@@ -802,6 +801,14 @@ private:
             }
 
             ++m_curr_arg;
+        }
+
+        for (auto& option : m_options)
+        {
+            if (option->has_default_value && !option->set)
+            {
+                option->set = true;
+            }
         }
     }
 
